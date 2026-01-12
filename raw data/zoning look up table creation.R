@@ -44,7 +44,7 @@ danville_zoning <- data.frame(
 # Save it
 write.csv(danville_zoning, "analyzed data/danville_zoning_lookup.csv", row.names = FALSE)
 
-# Franklin County zoning lookup table (codes without hyphens)
+# Franklin County zoning lookup table 
 franklin_zoning <- data.frame(
   locality = "Franklin County",
   zone_code = c("A1", "RE", "R1", "R2", "RC1", "C1", "RMF", "RPD",
@@ -83,4 +83,62 @@ franklin_zoning <- data.frame(
 )
 
 # Save it
-write.csv(franklin_zoning, "analyzed_data/franklin_zoning_lookup.csv", row.names = FALSE)
+write.csv(franklin_zoning, "analyzed data/franklin_zoning_lookup.csv", row.names = FALSE)
+
+
+# Henry County zoning lookup table 
+henry_zoning <- data.frame(
+  locality = "Henry County",
+  zone_code = c("A1", "RR", "MR", "SR",
+                "B3", "B2", "B1",
+                "I2", "I1",
+                "GS",
+                "CO", "AO"),
+  zone_name = c("Agricultural District",
+                "Rural Residential District",
+                "Mixed Residential District",
+                "Suburban Residential District",
+                "Office and Professional District",
+                "Neighborhood Commercial District",
+                "General Commercial District",
+                "Limited Industrial District",
+                "Industrial District",
+                "Government and Special Use District",
+                "Conservation Overlay District",
+                "Airport Overlay District"),
+  zone_category = c("Agricultural",
+                    "Residential", "Residential", "Residential",
+                    "Commercial", "Commercial", "Commercial",
+                    "Industrial", "Industrial",
+                    "Government/Special",
+                    "Overlay", "Overlay"),
+  stringsAsFactors = FALSE
+)
+
+# Save it
+write.csv(henry_zoning, "analyzed data/henry_zoning_lookup.csv", row.names = FALSE)
+
+# Martinsville City zoning lookup table (This one USES hyphens)
+
+martinsville_zoning <- data.frame(
+  locality = "Martinsville",
+  zone_code = c("R-E", "R-N", "R-C", "R-T", "C-N", "C-UB", "C-C", "ED-MA",
+                "ED-G", "ED-I"),
+  zone_name = c("Estate Residential District", 
+                "Neighborhood Residential District",
+                "City Residential District",
+                "Residential Transitional District",
+                "Neighborhood Commercial District",
+                "Uptown Business District",
+                "Corridor Commercial District",
+                "Economic Development District-Medical and Academic",
+                "Economic Development District-General",
+                "Economic Development District-Intensive"),
+  zone_category = c("Residential", "Residential", "Residential", "Residential",
+                    "Commercial", "Commercial", "Commercial",
+                    "Economic Development", "Economic Development", "Economic Development"),
+  stringsAsFactors = FALSE
+)
+
+# Save it
+write.csv(martinsville_zoning, "analyzed data/martinsville_zoning_lookup.csv", row.names = FALSE)
