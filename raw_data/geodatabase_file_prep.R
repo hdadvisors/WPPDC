@@ -25,16 +25,17 @@ patrick_rlb <- st_read("raw_data/Regional_Land_Bank.gdb", layer = "RLB_Patrick_P
 franklin_rlb <- st_read("raw_data/Regional_Land_Bank.gdb", layer = "RLB_Franklin_Parcels")
 
 # ============================================
-# STEP 3: Transform all to same CRS
+# STEP 3: Transform all to same CRS and drop Z dimension
 # ============================================
 
 # Using EPSG:3857 (WGS 84 / Pseudo-Mercator) for consistency
-danville_rlb <- st_transform(danville_rlb, 3857)
-henry_rlb <- st_transform(henry_rlb, 3857)
-martinsville_rlb <- st_transform(martinsville_rlb, 3857)
-pittsylvania_rlb <- st_transform(pittsylvania_rlb, 3857)
-patrick_rlb <- st_transform(patrick_rlb, 3857)
-franklin_rlb <- st_transform(franklin_rlb, 3857)
+# Drop Z/M dimensions to avoid export errors (some layers have empty Z values)
+danville_rlb <- st_transform(danville_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
+henry_rlb <- st_transform(henry_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
+martinsville_rlb <- st_transform(martinsville_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
+pittsylvania_rlb <- st_transform(pittsylvania_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
+patrick_rlb <- st_transform(patrick_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
+franklin_rlb <- st_transform(franklin_rlb, 3857) %>% st_zm(drop = TRUE, what = "ZM")
 
 # ============================================
 # STEP 4: Create standardized join fields
@@ -128,7 +129,7 @@ cat("\nCRS:", st_crs(all_rlb_geom)$input, "\n")
 # Save as GeoPackage (preserves long field names better than shapefile)
 st_write(all_rlb_geom, "analyzed_data/rlb_geometry_clean.gpkg", delete_dsn = TRUE)
 
-cat("\n✓ Saved to: analyzed_data/rlb_geometry_clean.gpkg\n")
+cat("\n✓ Saved to: analyzed data/rlb_geometry_clean.gpkg\n")
 
 # ============================================
 # JOIN KEY REFERENCE
