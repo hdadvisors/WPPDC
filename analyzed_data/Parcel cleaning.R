@@ -6,12 +6,12 @@ library(tidyverse)
 library(readxl)
 
 # Load each parcel dataset (adjust file paths and column names as needed)
-danville_parcels <- read_excel("raw data/danvilleparcels.xlsx")
-henry_parcels <- read_excel("raw data/Henryparcels.xlsx")
-martinsville_parcels <- read_excel("raw data/Martinsvilleparcels.xlsx")
-pittsylvania_parcels <- read_excel("raw data/Pittsylvaniaparcels.xlsx")
-patrick_parcels <- read_excel("raw data/Patrickparcels.xlsx")
-franklin_parcels <- read_excel("raw data/Franklinparcels.xlsx")
+danville_parcels <- read_excel("raw_data/danvilleparcels.xlsx")
+henry_parcels <- read_excel("raw_data/Henryparcels.xlsx")
+martinsville_parcels <- read_excel("raw_data/Martinsvilleparcels.xlsx")
+pittsylvania_parcels <- read_excel("raw_data/Pittsylvaniaparcels.xlsx")
+patrick_parcels <- read_excel("raw_data/Patrickparcels.xlsx")
+franklin_parcels <- read_excel("raw_data/Franklinparcels.xlsx")
 
 # Add locality column if not already present
 danville_parcels <- danville_parcels %>% mutate(locality = "Danville City")
@@ -25,10 +25,12 @@ patrick_parcels <- patrick_parcels %>% mutate(locality = "Patrick County")
 # Standardize columns across datasets
 # ============================================
 
-# Standardize Danville
+# Standardize Danville (joins on account_id)
 danville_clean <- danville_parcels %>%
   mutate(
     locality = "Danville",
+    account_id = as.character(ACCOUNT),
+    address_clean = toupper(trimws(ADDRESS)),
     OBJECTID = as.numeric(OBJECTID),
     zoning = ZONING,
     owner = OWNER1,
@@ -38,13 +40,15 @@ danville_clean <- danville_parcels %>%
     total_value = as.numeric(TOTAL),
     year_built = as.numeric(YEARBUILT)
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
-# Standardize Henry
+# Standardize Henry (joins on address_clean)
 henry_clean <- henry_parcels %>%
   mutate(
     locality = "Henry County",
+    account_id = as.character(ACCTNUMB),
+    address_clean = toupper(trimws(PropAddr)),
     OBJECTID = as.numeric(OBJECTID),
     zoning = ZoneType,
     owner = OwnrName,
@@ -54,13 +58,15 @@ henry_clean <- henry_parcels %>%
     total_value = as.numeric(TotlMVal),
     year_built = as.numeric(YearBilt)
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
-# Standardize Martinsville
+# Standardize Martinsville (joins on address_clean)
 martinsville_clean <- martinsville_parcels %>%
   mutate(
     locality = "Martinsville",
+    account_id = as.character(ACCTTEXT),
+    address_clean = toupper(trimws(PROPADDR)),
     OBJECTID = as.numeric(OBJECTID),
     zoning = ZONETYPE,
     owner = OWNRNAME,
@@ -70,13 +76,15 @@ martinsville_clean <- martinsville_parcels %>%
     total_value = as.numeric(TOTLMVAL),
     year_built = as.numeric(YEARBILT)
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
-# Standardize Pittsylvania (use OBJECTID_1)
+# Standardize Pittsylvania (joins on account_id)
 pittsylvania_clean <- pittsylvania_parcels %>%
   mutate(
     locality = "Pittsylvania County",
+    account_id = as.character(ASSESSED_G),
+    address_clean = toupper(trimws(Property_A)),
     OBJECTID = as.numeric(OBJECTID_1),
     zoning = PC_ZONE_CO,
     owner = Current_Ow,
@@ -86,13 +94,15 @@ pittsylvania_clean <- pittsylvania_parcels %>%
     total_value = as.numeric(Total_Tax_),
     year_built = NA_real_
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
-# Standardize Patrick (no zoning)
+# Standardize Patrick (joins on account_id)
 patrick_clean <- patrick_parcels %>%
   mutate(
     locality = "Patrick County",
+    account_id = as.character(SMAPNUM),
+    address_clean = toupper(trimws(E911_Str_1)),
     OBJECTID = as.numeric(OBJECTID),
     zoning = NA_character_,
     owner = Owner_Name,
@@ -102,24 +112,26 @@ patrick_clean <- patrick_parcels %>%
     total_value = as.numeric(Total_Valu),
     year_built = NA_real_
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
-# Standardize Franklin (use OBJECTID_1)
+# Standardize Franklin (joins on address_clean)
 franklin_clean <- franklin_parcels %>%
   mutate(
     locality = "Franklin County",
+    account_id = as.character(PIN),
+    address_clean = toupper(trimws(FULLADDR)),
     OBJECTID = as.numeric(OBJECTID_1),
     zoning = zoning,
     owner = owner_name,
     address = FULLADDR,
-    acres = acreage,
-    land_value = land_value,
-    total_value = total_asse,
+    acres = as.numeric(acreage),
+    land_value = as.numeric(land_value),
+    total_value = as.numeric(total_asse),
     year_built = NA_real_
   ) %>%
-  select(locality, OBJECTID, zoning, owner, address, acres, land_value, 
-         total_value, year_built)
+  select(locality, account_id, address_clean, OBJECTID, zoning, owner, address, 
+         acres, land_value, total_value, year_built)
 
 # ============================================
 # Combine all parcels
@@ -138,7 +150,7 @@ all_parcels <- bind_rows(
 # ============================================
 # Join zoning lookup
 # ============================================
-pdc_zoning_lookup <- read_csv("analyzed data/pdc_zoning_lookup.csv")
+pdc_zoning_lookup <- read_csv("analyzed_data/pdc_zoning_lookup.csv")
 
 all_parcels_decoded <- all_parcels %>%
   left_join(pdc_zoning_lookup, by = c("locality" = "locality", 
@@ -164,7 +176,30 @@ unmatched <- all_parcels_decoded %>%
 print(unmatched)
 
 # ============================================
-# PART 6: Save final output
+# Save final output
 # ============================================
 
-write.csv(all_parcels_decoded, "analyzed data/pdc_master_parcels.csv", row.names = FALSE)
+cat("\n========== PARCEL SUMMARY ==========\n")
+cat("Total parcels:", nrow(all_parcels_decoded), "\n\n")
+
+all_parcels_decoded %>%
+  count(locality) %>%
+  print()
+
+# ============================================
+# STEP 7: Save final output
+# ============================================
+
+write.csv(all_parcels_decoded, "analyzed_data/pdc_master_parcels.csv", row.names = FALSE)
+
+cat("\n✓ Saved to: analyzed_data/pdc_master_parcels.csv\n")
+
+# ============================================
+# JOIN KEY REFERENCE (for geodatabase script)
+# ============================================
+# Danville:      joins on account_id (ACCOUNT)
+# Pittsylvania:  joins on account_id (ASSESSED_G)
+# Patrick:       joins on account_id (SMAPNUM)
+# Henry:         joins on address_clean (PropAddr)
+# Martinsville:  joins on address_clean (PROPADDR)
+# Franklin:      joins on address_clean (FULLADDR)

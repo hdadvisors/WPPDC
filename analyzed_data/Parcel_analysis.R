@@ -5,7 +5,7 @@
 library(tidyverse)
 
 # Load the combined dataset
-parcels <- read.csv("analyzed data/pdc_master_parcels.csv")
+parcels <- read.csv("analyzed_data/pdc_master_parcels.csv")
 
 # ============================================
 # 1. ZONING TYPE BREAKDOWN

@@ -1,0 +1,13 @@
+"zone_category","parcel_count","total_value_sum","avg_total_value","median_total_value","percent_of_total"
+"Industrial",90,22960300,255114,79300,58.9
+"Commercial",64,4353300,68020,20100,11.2
+"Unzoned",68,4276600,62891,20600,11
+"Agricultural",57,3993600,70063,22300,10.2
+"Residential",188,1648400,8768,4100,4.2
+NA,9,574100,71762,27350,1.5
+"Office/Commercial",8,395200,49400,5400,1
+"Government/Special",5,335700,67140,1e+05,0.9
+"Parks/Open Space",2,301200,150600,150600,0.8
+"Economic Development",8,97600,12200,3900,0.3
+"Overlay/Special",2,56000,28000,28000,0.1
+"Other",1,20000,20000,20000,0.1
