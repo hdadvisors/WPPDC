@@ -1,11 +1,26 @@
 # ============================================
-# PDC Master Parcels - Summary Statistics
+# PDC Master Parcels - Summary Statistics & Mapping
+# Using HDA Style Guide
 # ============================================
 
 library(tidyverse)
+library(sf)
+install.packages("devtools")
+devtools::install_github("hdadvisors/hdatools")
+library(hdatools)
 
-# Load the combined dataset
+# ============================================
+# LOAD DATA
+# ============================================
+
+# Load the CSV dataset (for tabular analysis)
 parcels <- read.csv("analyzed_data/pdc_master_parcels.csv")
+
+# Load the spatial dataset (for mapping)
+parcels_spatial <- st_read("analyzed_data/pdc_parcels_spatial.gpkg")
+
+cat("Loaded", nrow(parcels), "parcels from CSV\n")
+cat("Loaded", nrow(parcels_spatial), "parcels with geometry\n\n")
 
 # ============================================
 # 1. ZONING TYPE BREAKDOWN
@@ -137,10 +152,6 @@ value_by_zone <- parcels %>%
 cat("\n--- Value by Zone Category ---\n")
 print(value_by_zone)
 
-## Residential properties make up the largest share of the tax base (65% of total value), even though individual residential parcels are worth less on average than commercial or industrial.
-## Commercial and industrial parcels are fewer in number but higher value per parcel - there are only 2,500 commercial parcels, but each one averages $480,000 compared to $100,000 for residential.
-## The gap between average and median tells you about the distribution. If the average is much higher than the median (like in Commercial: $480k avg vs $320k median), it means a few high-value properties are pulling the average up.
-
 # Value by locality AND zone category
 value_by_locality_zone <- parcels %>%
   group_by(locality, zone_category) %>%
@@ -170,3 +181,145 @@ cat("  - summary_zone_category.csv\n")
 cat("  - summary_locality.csv\n")
 cat("  - summary_value_by_locality.csv\n")
 cat("  - summary_value_by_zone.csv\n")
+
+# ============================================
+# 5. SPATIAL ANALYSIS
+# ============================================
+
+cat("\n\n========== SPATIAL ANALYSIS ==========\n\n")
+
+# Calculate area from geometry (in acres)
+parcels_spatial <- parcels_spatial %>%
+  mutate(
+    geom_area_sqm = as.numeric(st_area(geom)),
+    geom_area_acres = geom_area_sqm / 4046.86  # convert sq meters to acres
+  )
+
+# Compare calculated area to reported acres
+area_comparison <- parcels_spatial %>%
+  st_drop_geometry() %>%
+  summarise(
+    reported_acres_total = sum(acres, na.rm = TRUE),
+    calculated_acres_total = sum(geom_area_acres, na.rm = TRUE),
+    difference = reported_acres_total - calculated_acres_total,
+    pct_difference = round((difference / reported_acres_total) * 100, 1)
+  )
+
+cat("--- Area Comparison (Reported vs Calculated from Geometry) ---\n")
+cat("Reported total acres:   ", round(area_comparison$reported_acres_total, 1), "\n")
+cat("Calculated total acres: ", round(area_comparison$calculated_acres_total, 1), "\n")
+cat("Difference:             ", round(area_comparison$difference, 1), " (", area_comparison$pct_difference, "%)\n")
+
+# Spatial summary by locality
+spatial_by_locality <- parcels_spatial %>%
+  group_by(locality) %>%
+  summarise(
+    parcel_count = n(),
+    total_geom_acres = round(sum(geom_area_acres), 1),
+    .groups = "drop"
+  )
+
+cat("\n--- Spatial Summary by Locality ---\n")
+print(spatial_by_locality)
+
+
+# ============================================
+# INTERACTIVE MAP (Leaflet)
+# ============================================
+install.packages("leaflet")
+library(leaflet)
+library(tigris)
+
+# Get Virginia county boundaries
+options(tigris_use_cache = TRUE)
+va_counties <- counties(state = "VA", cb = TRUE) %>%
+  st_transform(4326)
+
+# Filter to just the PDC region counties/cities
+pdc_localities <- c("Danville city", "Henry County", "Martinsville city", 
+                    "Pittsylvania County", "Patrick County", "Franklin County")
+
+pdc_boundaries <- va_counties %>%
+  filter(NAMELSAD %in% pdc_localities)
+
+# Transform parcels to WGS84 (required for leaflet)
+parcels_wgs84 <- st_transform(parcels_spatial, 4326)
+
+# Create palette with explicit matching
+zone_levels <- c(
+  "Agricultural",
+  "Commercial", 
+  "Economic Development",
+  "Government/Special",
+  "Industrial",
+  "Office/Commercial",
+  "Other",
+  "Residential",
+  "Unzoned"
+)
+
+zone_colors_ordered <- c(
+  "#8baeaa",   # Agricultural - HDA Green
+  "#e9ab3f",   # Commercial - HDA Yellow
+  "#c75b42",   # Economic Development - Darker Coral
+  "#5a8a84",   # Government/Special - Darker Green
+  "#e76f52",   # Industrial - HDA Coral
+  "#d4a03a",   # Office/Commercial - Darker Yellow
+  "#bdc3c7",   # Other - Light Gray
+  "#445ca9",   # Residential - HDA Blue
+  "#95a5a6"    # Unzoned - Gray
+)
+
+# Create palette function with explicit order
+zone_pal <- colorFactor(
+  palette = zone_colors_ordered,
+  levels = zone_levels,
+  na.color = "#cccccc"
+)
+
+
+# Create interactive map
+map_interactive <- leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  
+  # Add county/city boundaries first (so parcels appear on top)
+  addPolygons(
+    data = pdc_boundaries,
+    fillColor = "transparent",
+    fillOpacity = 0,
+    color = "#333333",
+    weight = 1,
+    opacity = 1,
+    label = ~NAMELSAD
+  ) %>%
+  
+  # Add parcels
+  addPolygons(
+    data = parcels_wgs84,
+    fillColor = ~zone_pal(zone_category),
+    fillOpacity = 0.7,
+    color = "white",
+    weight = 1,
+    popup = ~paste(
+      "<strong>", address, "</strong><br>",
+      "Locality: ", locality, "<br>",
+      "Zoning: ", zone_name, "<br>",
+      "Category: ", zone_category, "<br>",
+      "Acres: ", round(acres, 2), "<br>",
+      "Total Value: $", format(total_value, big.mark = ",")
+    )
+  ) %>%
+  
+  addLegend(
+    position = "bottomright",
+    pal = zone_pal,
+    values = parcels_wgs84$zone_category,
+    title = "Zone Category"
+  )
+
+# Display the map
+map_interactive
+
+# Save as HTML file
+saveWidget(map_interactive, "analyzed_data/map_interactive_parcels.html", selfcontained = TRUE)
+cat("✓ Saved: map_interactive_parcels.html\n")
