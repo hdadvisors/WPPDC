@@ -13,9 +13,14 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(knitr)
 library(flextable)
+library(sf)
+library(dbscan)
 
 # Load the combined dataset
 parcels <- read.csv("/Users/mted/Documents/HDA/WPPDC/analyzed_data/pdc_master_parcels.csv")
+
+# Load spatial data for cluster analysis
+parcels_spatial <- st_read("/Users/mted/Documents/HDA/WPPDC/analyzed_data/pdc_parcels_spatial.gpkg", quiet = TRUE)
 ```
 ## Overview
 
@@ -189,6 +194,127 @@ value_by_zone <- parcels %>%
 
 kable(value_by_zone)
 ```
+
+---
+
+## Spatial Concentration Analysis
+
+This section identifies geographic clusters of Regional Land Bank parcels to highlight areas with concentrations of vacant, publicly-owned properties that may present opportunities for coordinated redevelopment.
+
+```{r cluster-analysis}
+# Get centroids of all parcels
+parcel_centroids <- parcels_spatial %>%
+  st_centroid()
+
+# Extract coordinates
+coords <- parcel_centroids %>%
+  st_coordinates()
+
+# Run DBSCAN clustering
+# eps = 500 meters, minPts = 5 parcels minimum
+clusters <- dbscan(coords, eps = 500, minPts = 5)
+
+# Add cluster IDs back to data
+parcels_spatial$cluster <- clusters$cluster
+
+# Summarize clusters
+cluster_summary <- parcels_spatial %>%
+  st_drop_geometry() %>%
+  filter(cluster > 0) %>%
+  group_by(cluster, locality) %>%
+  summarise(
+    parcel_count = n(),
+    total_acres = round(sum(acres, na.rm = TRUE), 1),
+    total_value = sum(total_value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(parcel_count))
+
+# Calculate totals
+total_clustered_parcels <- sum(cluster_summary$parcel_count)
+total_clustered_acres <- sum(cluster_summary$total_acres)
+total_clustered_value <- sum(cluster_summary$total_value)
+num_clusters <- nrow(cluster_summary)
+```
+
+### Methodology
+
+Clusters were identified using DBSCAN (Density-Based Spatial Clustering of Applications with Noise) with the following parameters:
+
+- **Distance threshold:** 500 meters (parcels within this distance are considered neighbors)
+- **Minimum parcels:** 5 (minimum number of parcels required to form a cluster)
+
+### Key Findings
+
+The analysis identified **`r num_clusters` distinct clusters** containing **`r total_clustered_parcels` parcels** across **`r format(total_clustered_acres, nsmall = 1)` acres** with a combined assessed value of **$`r format(total_clustered_value, big.mark = ",")`**.
+
+### Clusters by Locality
+
+```{r cluster-by-locality}
+cluster_by_locality <- cluster_summary %>%
+  group_by(locality) %>%
+  summarise(
+    `Clusters` = n(),
+    `Parcels` = sum(parcel_count),
+    `Acres` = round(sum(total_acres), 1),
+    `Total Value` = sum(total_value),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `Total Value` = paste0("$", format(`Total Value`, big.mark = ","))
+  ) %>%
+  arrange(desc(Parcels)) %>%
+  rename(Locality = locality)
+
+kable(cluster_by_locality)
+```
+
+Danville has the highest concentration of clustered parcels, while Henry County has fewer but larger clusters by acreage.
+
+### Detailed Cluster Inventory
+
+The table below lists all identified clusters, sorted by number of parcels.
+
+```{r cluster-detail}
+cluster_detail <- cluster_summary %>%
+  mutate(
+    `Total Value` = paste0("$", format(total_value, big.mark = ","))
+  ) %>%
+  rename(
+    Cluster = cluster,
+    Locality = locality,
+    Parcels = parcel_count,
+    Acres = total_acres
+  ) %>%
+  select(Cluster, Locality, Parcels, Acres, `Total Value`)
+
+kable(cluster_detail)
+```
+
+### Largest Clusters
+
+```{r top-clusters}
+top_clusters <- cluster_summary %>%
+  head(5) %>%
+  mutate(
+    description = case_when(
+      cluster == 1 ~ "Downtown/urban core area",
+      cluster == 15 ~ "Large rural/agricultural parcels",
+      cluster == 17 ~ "Central business district",
+      TRUE ~ "Mixed-use area"
+    )
+  )
+```
+
+The five largest clusters by parcel count are:
+
+1. **Cluster 1 (Danville):** `r top_clusters$parcel_count[1]` parcels, `r top_clusters$total_acres[1]` acres
+2. **Cluster 15 (Henry County):** `r top_clusters$parcel_count[2]` parcels, `r top_clusters$total_acres[2]` acres
+3. **Cluster 17 (Martinsville):** `r top_clusters$parcel_count[3]` parcels, `r top_clusters$total_acres[3]` acres
+4. **Cluster 2 (Danville):** `r top_clusters$parcel_count[4]` parcels, `r top_clusters$total_acres[4]` acres
+5. **Cluster 7 (Danville):** `r top_clusters$parcel_count[5]` parcels, `r top_clusters$total_acres[5]` acres
+
+These clusters represent priority areas for coordinated land bank activities and potential redevelopment initiatives.
 
 ---
 
