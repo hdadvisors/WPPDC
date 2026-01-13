@@ -142,3 +142,40 @@ martinsville_zoning <- data.frame(
 
 # Save it
 write.csv(martinsville_zoning, "analyzed data/martinsville_zoning_lookup.csv", row.names = FALSE)
+
+# Patrick County does not have zoning 
+
+# Pittsylvania County zoning lookup table
+
+pittsylvania_zoning <- data.frame(
+  locality = "Pittsylvania County",
+  zone_code = c("A-1", "RE", "R-1", "RC-1", "RMF", "RPD", "MHP",
+                "B-1", "B-2",
+                "M-1", "M-2",
+                "C-1",
+                "DZ"),
+  zone_name = c("Agricultural District",
+                "Residential Estates District",
+                "Residential Suburban Subdivision District",
+                "Residential Combined Subdivision District",
+                "Residential Multi-Family District",
+                "Residential Planned Unit Development District",
+                "Residential Manufactured Housing Park District",
+                "Business District, Limited",
+                "Business District, General",
+                "Industrial District, Light Industry",
+                "Industrial District, Heavy Industry",
+                "Conservation District",
+                "Unknown/Other"),
+  zone_category = c("Agricultural",
+                    "Residential", "Residential", "Residential", 
+                    "Residential", "Residential", "Residential",
+                    "Commercial", "Commercial",
+                    "Industrial", "Industrial",
+                    "Conservation",
+                    "Other"),
+  stringsAsFactors = FALSE
+)
+
+# Save it
+write.csv(pittsylvania_zoning, "analyzed data/pittsylvania_zoning_lookup.csv", row.names = FALSE)
