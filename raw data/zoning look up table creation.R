@@ -179,3 +179,19 @@ pittsylvania_zoning <- data.frame(
 
 # Save it
 write.csv(pittsylvania_zoning, "analyzed data/pittsylvania_zoning_lookup.csv", row.names = FALSE)
+
+# ============================================
+# PART 2: Combine all lookup tables
+# ============================================
+library(dplyr)
+
+all_zoning_lookup <- bind_rows(
+  danville_zoning,
+  henry_zoning,
+  martinsville_zoning,
+  pittsylvania_zoning,
+  franklin_zoning
+)
+
+# Save master lookup table
+write.csv(all_zoning_lookup, "analyzed data/pdc_zoning_lookup.csv", row.names = FALSE)
