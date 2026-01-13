@@ -1,0 +1,195 @@
+---
+title: "PDC Regional Parcel Summary Statistics"
+author: "West Piedmont Planning District Commission"
+date: "`r Sys.Date()`"
+output: 
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(knitr)
+library(flextable)
+
+# Load the combined dataset
+parcels <- read.csv("/Users/mted/Documents/HDA/WPPDC/analyzed_data/pdc_master_parcels.csv")
+```
+## Overview
+
+This report summarizes parcel data across the West Piedmont Planning District region, including zoning distribution, location breakdown, and assessed value analysis.
+
+**Total Parcels in Dataset:** `r format(nrow(parcels), big.mark = ",")`
+
+---
+
+## Zoning Type Breakdown
+
+### Parcels by Zone Category
+
+```{r zone-category}
+zone_category_summary <- parcels %>%
+  count(zone_category, name = "Parcel Count") %>%
+  mutate(
+    `Percent` = paste0(round(`Parcel Count` / sum(`Parcel Count`) * 100, 1), "%")
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  rename(`Zone Category` = zone_category)
+
+kable(zone_category_summary)
+```
+
+### Top 15 Specific Zoning Designations
+
+```{r zone-name}
+zone_name_summary <- parcels %>%
+  count(zone_name, name = "Parcel Count") %>%
+  mutate(
+    `Percent` = paste0(round(`Parcel Count` / sum(`Parcel Count`) * 100, 1), "%")
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  rename(`Zone Name` = zone_name) %>%
+  head(15)
+
+kable(zone_name_summary)
+```
+
+### Zone Categories by Locality
+
+```{r zone-by-locality}
+library(flextable)
+
+# Create abbreviation lookup
+zone_abbrev <- c(
+  "Agricultural" = "A",
+  "Residential" = "R",
+  "Commercial" = "C",
+  "Industrial" = "I",
+  "Office/Commercial" = "O/C",
+  "Government" = "G",
+  "Government/Special" = "G",
+  "Economic Development" = "ED",
+  "Conservation" = "CON",
+  "Overlay" = "O/S",
+  "Special" = "O/S",
+  "Overlay/Special" = "O/S",
+  "Parks/Open Space" = "P/O",
+  "Other" = "OTH",
+  "Unzoned" = "UZ"
+)
+
+zoning_by_locality <- parcels %>%
+  mutate(zone_abbrev = recode(zone_category, !!!zone_abbrev)) %>%
+  count(locality, zone_abbrev) %>%
+  pivot_wider(
+    names_from = zone_abbrev,
+    values_from = n,
+    values_fill = 0
+  ) %>%
+  rename(Locality = locality)
+
+flextable(zoning_by_locality) %>%
+  width(j = 1, width = 1.5) %>%
+  autofit()
+```
+
+**Legend:** A = Agricultural, R = Residential, C = Commercial, I = Industrial, O/C = Office/Commercial, G = Government/Special, ED = Economic Development, O/S = Overlay/Special, P/O = Parks/Open Space, CON = Conservation, OTH = Other, UZ = Unzoned
+
+---
+
+## Location Summary
+
+### Parcels and Acreage by Locality
+
+```{r locality-summary}
+locality_summary <- parcels %>%
+  group_by(locality) %>%
+  summarise(
+    `Parcel Count` = n(),
+    `Total Acres` = round(sum(acres, na.rm = TRUE), 1),
+    `Avg Acres` = round(mean(acres, na.rm = TRUE), 2),
+    `Median Acres` = round(median(acres, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `% of Parcels` = paste0(round(`Parcel Count` / sum(`Parcel Count`) * 100, 1), "%"),
+    `% of Acreage` = paste0(round(`Total Acres` / sum(`Total Acres`) * 100, 1), "%")
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  rename(Locality = locality)
+
+kable(locality_summary)
+```
+
+---
+
+## Value Summary
+
+### Overall Value Statistics
+
+```{r overall-values}
+overall_values <- parcels %>%
+  summarise(
+    `Total Assessed Value` = paste0("$", format(sum(total_value, na.rm = TRUE), big.mark = ",")),
+    `Total Land Value` = paste0("$", format(sum(land_value, na.rm = TRUE), big.mark = ",")),
+    `Average Parcel Value` = paste0("$", format(round(mean(total_value, na.rm = TRUE), 0), big.mark = ",")),
+    `Median Parcel Value` = paste0("$", format(round(median(total_value, na.rm = TRUE), 0), big.mark = ","))
+  ) %>%
+  pivot_longer(everything(), names_to = "Metric", values_to = "Value")
+
+kable(overall_values)
+```
+
+### Value by Locality
+
+```{r value-locality}
+value_by_locality <- parcels %>%
+  group_by(locality) %>%
+  summarise(
+    `Parcel Count` = n(),
+    `Total Value` = sum(total_value, na.rm = TRUE),
+    `Avg Value` = round(mean(total_value, na.rm = TRUE), 0),
+    `Median Value` = round(median(total_value, na.rm = TRUE), 0),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `% of Total` = paste0(round(`Total Value` / sum(`Total Value`) * 100, 1), "%"),
+    `Total Value` = paste0("$", format(`Total Value`, big.mark = ",")),
+    `Avg Value` = paste0("$", format(`Avg Value`, big.mark = ",")),
+    `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  rename(Locality = locality)
+
+kable(value_by_locality)
+```
+
+### Value by Zone Category
+
+```{r value-zone}
+value_by_zone <- parcels %>%
+  group_by(zone_category) %>%
+  summarise(
+    `Parcel Count` = n(),
+    `Total Value` = sum(total_value, na.rm = TRUE),
+    `Avg Value` = round(mean(total_value, na.rm = TRUE), 0),
+    `Median Value` = round(median(total_value, na.rm = TRUE), 0),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `% of Total` = paste0(round(`Total Value` / sum(`Total Value`) * 100, 1), "%"),
+    `Total Value` = paste0("$", format(`Total Value`, big.mark = ",")),
+    `Avg Value` = paste0("$", format(`Avg Value`, big.mark = ",")),
+    `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  rename(`Zone Category` = zone_category)
+
+kable(value_by_zone)
+```
+
+---
+
+*Report generated on `r Sys.Date()`*
