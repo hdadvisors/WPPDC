@@ -323,3 +323,150 @@ map_interactive
 # Save as HTML file
 saveWidget(map_interactive, "analyzed_data/map_interactive_parcels.html", selfcontained = TRUE)
 cat("✓ Saved: map_interactive_parcels.html\n")
+
+# ============================================
+# SPATIAL CONCENTRATION ANALYSIS
+# ============================================
+
+library(sf)
+library(tidyverse)
+
+# ============================================
+# 1. CLUSTERING ANALYSIS - Find parcel clusters
+# ============================================
+
+# Get centroids of all parcels
+parcel_centroids <- parcels_spatial %>%
+  st_centroid()
+
+# Calculate distances between parcels to identify clusters
+# Using DBSCAN clustering (density-based)
+install.packages("dbscan")
+library(dbscan)
+
+# Extract coordinates
+coords <- parcel_centroids %>%
+  st_coordinates()
+
+# Run DBSCAN clustering
+# eps = distance threshold in meters (500m = ~0.3 miles)
+# minPts = minimum parcels to form a cluster
+clusters <- dbscan(coords, eps = 500, minPts = 5)
+
+# Add cluster IDs back to data
+parcels_spatial$cluster <- clusters$cluster
+
+# Summarize clusters
+cluster_summary <- parcels_spatial %>%
+  st_drop_geometry() %>%
+  filter(cluster > 0) %>%  # Exclude noise (cluster = 0)
+  group_by(cluster, locality) %>%
+  summarise(
+    parcel_count = n(),
+    total_acres = round(sum(acres, na.rm = TRUE), 1),
+    total_value = sum(total_value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(parcel_count))
+
+cat("\n========== PARCEL CLUSTERS ==========\n")
+cat("Clusters with 5+ parcels within 500m of each other:\n\n")
+print(cluster_summary)
+
+# ============================================
+# 2. HEATMAP / DENSITY - Visual concentration
+# ============================================
+
+# Create convex hulls around each cluster for visualization
+cluster_hulls <- parcels_spatial %>%
+  filter(cluster > 0) %>%
+  group_by(cluster) %>%
+  summarise(
+    parcel_count = n(),
+    total_acres = round(sum(acres, na.rm = TRUE), 1),
+    total_value = sum(total_value, na.rm = TRUE),
+    geometry = st_convex_hull(st_union(geom))
+  ) %>%
+  ungroup()
+
+# ============================================
+# 3. ADD CLUSTERS TO INTERACTIVE MAP
+# ============================================
+
+# Transform for leaflet
+cluster_hulls_wgs84 <- st_transform(cluster_hulls, 4326)
+parcels_wgs84 <- st_transform(parcels_spatial, 4326)
+
+# Color palette for clusters
+cluster_pal <- colorNumeric(
+  palette = "YlOrRd",
+  domain = cluster_hulls_wgs84$parcel_count
+)
+
+# Create map with cluster visualization
+map_clusters <- leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  
+  # County boundaries
+  addPolygons(
+    data = pdc_boundaries,
+    fillColor = "transparent",
+    fillOpacity = 0,
+    color = "#333333",
+    weight = 2,
+    opacity = 1,
+    label = ~NAMELSAD
+  ) %>%
+  
+  # Cluster hulls (concentration areas)
+  addPolygons(
+    data = cluster_hulls_wgs84,
+    fillColor = ~cluster_pal(parcel_count),
+    fillOpacity = 0.3,
+    color = "#e76f52",
+    weight = 2,
+    popup = ~paste(
+      "<strong>Cluster ", cluster, "</strong><br>",
+      "Parcels: ", parcel_count, "<br>",
+      "Total Acres: ", total_acres, "<br>",
+      "Total Value: $", format(total_value, big.mark = ",")
+    )
+  ) %>%
+  
+  # Individual parcels
+  addPolygons(
+    data = parcels_wgs84,
+    fillColor = ~zone_pal(zone_category),
+    fillOpacity = 0.7,
+    color = "white",
+    weight = 1,
+    popup = ~paste(
+      "<strong>", address, "</strong><br>",
+      "Locality: ", locality, "<br>",
+      "Zoning: ", zone_name, "<br>",
+      "Category: ", zone_category, "<br>",
+      "Acres: ", round(acres, 2), "<br>",
+      "Total Value: $", format(total_value, big.mark = ",")
+    )
+  ) %>%
+  
+  addLegend(
+    position = "bottomright",
+    pal = zone_pal,
+    values = parcels_wgs84$zone_category,
+    title = "Zone Category"
+  ) %>%
+  
+  addLegend(
+    position = "bottomleft",
+    pal = cluster_pal,
+    values = cluster_hulls_wgs84$parcel_count,
+    title = "Cluster Size"
+  )
+
+map_clusters
+
+# Save
+saveWidget(map_clusters, "analyzed_data/map_parcel_clusters.html", selfcontained = TRUE)
+cat("✓ Saved: map_parcel_clusters.html\n")
+
