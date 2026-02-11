@@ -1,7 +1,7 @@
 ---
-title: "PDC Master Parcels Analysis"
-subtitle: "Summary Statistics & Interactive Mapping"
-author: "Planning District Commission"
+title: "WPPDC Master Parcels Analysis"
+subtitle: "Summary Statistics & Interactive Mapping for the Regional Land Bank"
+author: "HDAdvisors"
 date: today
 format:
   html:
@@ -28,6 +28,9 @@ library(leaflet)
 library(tigris)
 library(knitr)
 library(kableExtra)
+devtools::install_github("hdadvisors/hdatools")
+library(hdatools)
+
 
 # Set options
 options(tigris_use_cache = TRUE)
@@ -82,9 +85,10 @@ locality_summary <- parcels %>%
   arrange(desc(`Parcel Count`))
 
 locality_summary %>%
-  kable(format.args = list(big.mark = ",")) %>%
+  kable(format.args = list(big.mark = ","), align = c("l", rep("r", 6))) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ### Key Findings
@@ -112,9 +116,10 @@ zone_category_summary <- parcels %>%
   arrange(desc(`Parcel Count`))
 
 zone_category_summary %>%
-  kable(format.args = list(big.mark = ",")) %>%
+  kable(format.args = list(big.mark = ","), align = c("l", "r", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ```{r zone-category-chart}
@@ -142,9 +147,8 @@ ggplot(zone_category_summary, aes(x = reorder(zone_category, `Parcel Count`),
     x = NULL,
     y = "Number of Parcels"
   ) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        plot.title = element_text(face = "bold", size = 14))
+  theme_hda() +
+  theme(legend.position = "none")
 ```
 
 ### Top 15 Specific Zoning Designations
@@ -159,9 +163,10 @@ zone_name_summary <- parcels %>%
   head(15)
 
 zone_name_summary %>%
-  kable(format.args = list(big.mark = ",")) %>%
+  kable(format.args = list(big.mark = ","), align = c("l", "r", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ---
@@ -185,9 +190,10 @@ overall_values <- parcels %>%
 overall_values %>%
   pivot_longer(everything(), names_to = "Metric", values_to = "Value") %>%
   mutate(Value = paste0("$", format(round(Value, 0), big.mark = ","))) %>%
-  kable() %>%
+  kable(align = c("l", "r")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ### Value by Locality
@@ -215,9 +221,10 @@ value_by_locality %>%
     `Average Value` = paste0("$", format(`Average Value`, big.mark = ",")),
     `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
   ) %>%
-  kable() %>%
+  kable(align = c("l", rep("r", 6))) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ### Value by Zone Category
@@ -243,25 +250,47 @@ value_by_zone %>%
     `Average Value` = paste0("$", format(`Average Value`, big.mark = ",")),
     `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
   ) %>%
-  kable() %>%
+  kable(align = c("l", rep("r", 5))) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE)
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
 ```{r value-zone-chart}
 #| fig-height: 6
 
+library(ggiraph)
+
 value_by_zone_chart <- parcels %>%
+  filter(!is.na(zone_category)) %>%  # Remove NA zone categories
   group_by(zone_category) %>%
   summarise(
-    total_value = sum(total_value, na.rm = TRUE),
+    parcel_count = n(),
+    total_value_sum = sum(total_value, na.rm = TRUE),
+    avg_total_value = round(mean(total_value, na.rm = TRUE), 0),
+    median_total_value = round(median(total_value, na.rm = TRUE), 0),
     .groups = "drop"
+  ) %>%
+  mutate(
+    percent_of_total = round(total_value_sum / sum(total_value_sum) * 100, 1),
+    total_value_millions = total_value_sum / 1e6,
+    tooltip = paste0(
+      "<b>", zone_category, "</b><br/>",
+      "Total Value: $", scales::comma(total_value_sum), "<br/>",
+      "Average Parcel Value: $", scales::comma(avg_total_value), "<br/>",
+      "Median Parcel Value: $", scales::comma(median_total_value), "<br/>",
+      "Parcel Count: ", scales::comma(parcel_count), "<br/>",
+      "% of Total Value: ", percent_of_total, "%"
+    )
   )
 
-ggplot(value_by_zone_chart, aes(x = reorder(zone_category, total_value), 
-                                  y = total_value/1e6, 
-                                  fill = zone_category)) +
-  geom_col() +
+p <- ggplot(value_by_zone_chart, 
+            aes(x = reorder(zone_category, total_value_sum), 
+                y = total_value_millions, 
+                fill = zone_category,
+                tooltip = tooltip,
+                data_id = zone_category)) +
+  geom_col_interactive() +
   coord_flip() +
   scale_y_continuous(labels = scales::dollar_format(suffix = "M")) +
   scale_fill_manual(values = c(
@@ -277,12 +306,22 @@ ggplot(value_by_zone_chart, aes(x = reorder(zone_category, total_value),
   )) +
   labs(
     title = "Total Assessed Value by Zone Category",
+    subtitle = "Hover over bars for details",
     x = NULL,
     y = "Total Value (Millions)"
   ) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        plot.title = element_text(face = "bold", size = 14))
+  theme_hda() +
+  theme(legend.position = "none")
+
+girafe(
+  ggobj = p,
+  width_svg = 10,
+  height_svg = 6,
+  options = list(
+    opts_hover(css = "fill:opacity(0.8);stroke:black;stroke-width:2;"),
+    opts_tooltip(css = "background-color:#333333;color:white;padding:10px;border-radius:5px;font-family:sans-serif;")
+  )
+)
 ```
 
 ---
