@@ -1,0 +1,460 @@
+---
+title: "WPPDC Master Parcels Analysis"
+subtitle: "Summary Statistics & Interactive Mapping for the Regional Land Bank Working Group"
+author: "HDAdvisors"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-summary: "Show code"
+    theme: cosmo
+    embed-resources: true
+    fig-width: 10
+    fig-height: 8
+execute:
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(tigris)
+library(knitr)
+library(kableExtra)
+devtools::install_github("hdadvisors/hdatools")
+library(hdatools)
+
+
+# Set options
+options(tigris_use_cache = TRUE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load-data}
+#| include: false
+
+# Load the CSV dataset (for tabular analysis)
+parcels <- read.csv("pdc_master_parcels.csv")
+
+# Load the spatial dataset (for mapping)
+parcels_spatial <- st_read("pdc_parcels_spatial.gpkg", quiet = TRUE)
+
+# Get Virginia county boundaries
+va_counties <- counties(state = "VA", cb = TRUE) %>%
+  st_transform(4326)
+
+# Filter to PDC region
+pdc_localities <- c("Danville city", "Henry County", "Martinsville city", 
+                    "Pittsylvania County", "Patrick County", "Franklin County")
+
+pdc_boundaries <- va_counties %>%
+  filter(NAMELSAD %in% pdc_localities)
+```
+
+## Executive Summary
+
+This analysis examines **`r format(nrow(parcels), big.mark = ",")`** parcels across the West Piedmont Planning District Commission region, representing a total assessed value of **$`r format(sum(parcels$total_value, na.rm = TRUE), big.mark = ",")`** and covering approximately **`r format(round(sum(parcels$acres, na.rm = TRUE), 0), big.mark = ",")`** acres.
+
+This analysis was done in conjunction with other land bank recommendations and research for the WPPDC, and is not to be shared publicly. 
+
+---
+
+## 1. Geographic Distribution
+
+### Parcels by Locality
+
+```{r locality-summary}
+locality_summary <- parcels %>%
+  group_by(locality) %>%
+  summarise(
+    `Parcel Count` = n(),
+    `Total Acres` = round(sum(acres, na.rm = TRUE), 1),
+    `Average Acres` = round(mean(acres, na.rm = TRUE), 2),
+    `Median Acres` = round(median(acres, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `% of Parcels` = round(`Parcel Count` / sum(`Parcel Count`) * 100, 1),
+    `% of Acres` = round(`Total Acres` / sum(`Total Acres`) * 100, 1)
+  ) %>%
+  arrange(desc(`Parcel Count`))
+
+locality_summary %>%
+  kable(format.args = list(big.mark = ","), align = c("l", rep("r", 6))) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
+```
+
+### Key Findings
+
+```{r locality-insights}
+top_locality <- locality_summary %>% slice(1)
+most_acres <- locality_summary %>% arrange(desc(`Total Acres`)) %>% slice(1)
+```
+
+- **`r top_locality$locality`** contains the most parcels (**`r format(top_locality$'Parcel Count', big.mark = ",")`**, `r top_locality$'% of Parcels'`% of total)
+- **`r most_acres$locality`** has the largest land area (**`r format(most_acres$'Total Acres', big.mark = ",")`** acres, `r most_acres$'% of Acres'`% of total)
+
+---
+
+## 2. Zoning Analysis
+
+### Zone Category Distribution
+
+```{r zone-category}
+zone_category_summary <- parcels %>%
+  count(zone_category, name = "Parcel Count") %>%
+  mutate(
+    `Percentage` = round(`Parcel Count` / sum(`Parcel Count`) * 100, 1)
+  ) %>%
+  arrange(desc(`Parcel Count`))
+
+zone_category_summary %>%
+  kable(format.args = list(big.mark = ","), align = c("l", "r", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
+```
+
+
+### Top 15 Specific Zoning Designations
+
+```{r zone-names}
+zone_name_summary <- parcels %>%
+  count(zone_name, name = "Parcel Count") %>%
+  mutate(
+    `Percentage` = round(`Parcel Count` / sum(`Parcel Count`) * 100, 1)
+  ) %>%
+  arrange(desc(`Parcel Count`)) %>%
+  head(15)
+
+zone_name_summary %>%
+  kable(format.args = list(big.mark = ","), align = c("l", "r", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
+```
+
+### Zoning Distribution by Locality
+
+```{r zoning-by-locality-chart}
+#| fig-height: 7
+
+library(ggiraph)
+
+zoning_by_locality <- parcels %>%
+  filter(!is.na(zone_category)) %>%
+  count(locality, zone_category) %>%
+  group_by(locality) %>%
+  mutate(
+    total_locality = sum(n),
+    percent_within_locality = round(n / total_locality * 100, 1),
+    tooltip = paste0(
+      "<b>", locality, "</b><br/>",
+      "Zone: ", zone_category, "<br/>",
+      "Parcel Count: ", scales::comma(n), "<br/>",
+      "% of ", locality, ": ", percent_within_locality, "%"
+    )
+  ) %>%
+  ungroup()
+
+p <- ggplot(zoning_by_locality, 
+            aes(x = reorder(locality, total_locality), 
+                y = n, 
+                fill = zone_category,
+                tooltip = tooltip,
+                data_id = paste(locality, zone_category, sep = "_"))) +
+  geom_col_interactive(position = "stack") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_manual(values = c(
+    "Agricultural" = "#8baeaa",
+    "Commercial" = "#e9ab3f",
+    "Economic Development" = "#c75b42",
+    "Government/Special" = "#5a8a84",
+    "Industrial" = "#e76f52",
+    "Office/Commercial" = "#d4a03a",
+    "Other" = "#bdc3c7",
+    "Residential" = "#445ca9",
+    "Unzoned" = "#95a5a6"
+  )) +
+  labs(
+    title = "Zoning Distribution by Locality",
+    subtitle = "Hover over sections for details",
+    x = NULL,
+    y = "Number of Parcels",
+    fill = "Zone Category"
+  ) +
+  theme_hda() +
+  theme(legend.position = "right")
+
+girafe(
+  ggobj = p,
+  width_svg = 12,
+  height_svg = 7,
+  options = list(
+    opts_hover(css = "fill:opacity(0.8);stroke:black;stroke-width:2;"),
+    opts_tooltip(css = "background-color:#333333;color:white;padding:10px;border-radius:5px;font-family:sans-serif;")
+  )
+)
+
+
+```
+
+
+## 3. Assessed Value Analysis
+
+### Overall Value Statistics
+
+```{r value-overall}
+overall_values <- parcels %>%
+  summarise(
+    `Total Assessed Value` = sum(total_value, na.rm = TRUE),
+    `Average Parcel Value` = mean(total_value, na.rm = TRUE),
+    `Median Parcel Value` = median(total_value, na.rm = TRUE),
+    `Minimum Parcel Value` = min(total_value, na.rm = TRUE),
+    `Maximum Parcel Value` = max(total_value, na.rm = TRUE)
+  )
+
+overall_values %>%
+  pivot_longer(everything(), names_to = "Metric", values_to = "Value") %>%
+  mutate(Value = paste0("$", format(round(Value, 0), big.mark = ","))) %>%
+  kable(align = c("l", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
+
+
+### Value by Locality
+
+```{r value-locality}
+value_by_locality <- parcels %>%
+  group_by(locality) %>%
+  summarise(
+    `Parcel Count` = n(),
+    `Total Value` = sum(total_value, na.rm = TRUE),
+    `Average Value` = round(mean(total_value, na.rm = TRUE), 0),
+    `Median Value` = round(median(total_value, na.rm = TRUE), 0),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `% of Total Value` = round(`Total Value` / sum(`Total Value`) * 100, 1)
+  ) %>%
+  arrange(desc(`Total Value`))
+
+value_by_locality %>%
+  mutate(
+    `Total Value` = paste0("$", format(`Total Value`, big.mark = ",")),
+    `Average Value` = paste0("$", format(`Average Value`, big.mark = ",")),
+    `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
+  ) %>%
+  kable(align = c("l", rep("r", 6))) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
+```
+
+### Value by Zone Category
+
+```{r value-zone-chart}
+#| fig-height: 6
+
+library(ggiraph)
+
+value_by_zone_chart <- parcels %>%
+  filter(!is.na(zone_category)) %>%  # Remove NA zone categories
+  group_by(zone_category) %>%
+  summarise(
+    parcel_count = n(),
+    total_value_sum = sum(total_value, na.rm = TRUE),
+    avg_total_value = round(mean(total_value, na.rm = TRUE), 0),
+    median_total_value = round(median(total_value, na.rm = TRUE), 0),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    percent_of_total = round(total_value_sum / sum(total_value_sum) * 100, 1),
+    total_value_millions = total_value_sum / 1e6,
+    tooltip = paste0(
+      "<b>", zone_category, "</b><br/>",
+      "Total Value: $", scales::comma(total_value_sum), "<br/>",
+      "Average Parcel Value: $", scales::comma(avg_total_value), "<br/>",
+      "Median Parcel Value: $", scales::comma(median_total_value), "<br/>",
+      "Parcel Count: ", scales::comma(parcel_count), "<br/>",
+      "% of Total Value: ", percent_of_total, "%"
+    )
+  )
+
+p <- ggplot(value_by_zone_chart, 
+            aes(x = reorder(zone_category, total_value_sum), 
+                y = total_value_millions, 
+                fill = zone_category,
+                tooltip = tooltip,
+                data_id = zone_category)) +
+  geom_col_interactive() +
+  coord_flip() +
+  scale_y_continuous(labels = scales::dollar_format(suffix = "M")) +
+  scale_fill_manual(values = c(
+    "Agricultural" = "#8baeaa",
+    "Commercial" = "#e9ab3f",
+    "Economic Development" = "#c75b42",
+    "Government/Special" = "#5a8a84",
+    "Industrial" = "#e76f52",
+    "Office/Commercial" = "#d4a03a",
+    "Other" = "#bdc3c7",
+    "Residential" = "#445ca9",
+    "Unzoned" = "#95a5a6"
+  )) +
+  labs(
+    title = "Total Assessed Value by Zone Category",
+    subtitle = "Hover over bars for details",
+    x = NULL,
+    y = "Total Value (Millions)"
+  ) +
+  theme_hda() +
+  theme(legend.position = "none")
+
+girafe(
+  ggobj = p,
+  width_svg = 10,
+  height_svg = 6,
+  options = list(
+    opts_hover(css = "fill:opacity(0.8);stroke:black;stroke-width:2;"),
+    opts_tooltip(css = "background-color:#333333;color:white;padding:10px;border-radius:5px;font-family:sans-serif;")
+  )
+)
+```
+
+---
+
+## 4. Interactive Parcel Map
+
+Explore individual parcels by clicking on them to view detailed information including address, zoning, acreage, and assessed value.
+
+```{r interactive-map}
+#| fig-height: 10
+
+# Transform parcels to WGS84
+parcels_wgs84 <- st_transform(parcels_spatial, 4326)
+
+# Get Danville boundary for setting initial view
+danville_boundary <- pdc_boundaries %>%
+  filter(NAMELSAD == "Danville city")
+
+# Calculate center and zoom for Danville
+danville_bbox <- st_bbox(danville_boundary)
+danville_center_lng <- mean(c(danville_bbox["xmin"], danville_bbox["xmax"]))
+danville_center_lat <- mean(c(danville_bbox["ymin"], danville_bbox["ymax"]))
+
+# Zone category color palette
+zone_levels <- c(
+  "Agricultural",
+  "Commercial", 
+  "Economic Development",
+  "Government/Special",
+  "Industrial",
+  "Office/Commercial",
+  "Other",
+  "Residential",
+  "Unzoned"
+)
+
+zone_colors <- c(
+  "#8baeaa",   # Agricultural
+  "#e9ab3f",   # Commercial
+  "#c75b42",   # Economic Development
+  "#5a8a84",   # Government/Special
+  "#e76f52",   # Industrial
+  "#d4a03a",   # Office/Commercial
+  "#bdc3c7",   # Other
+  "#445ca9",   # Residential
+  "#95a5a6"    # Unzoned
+)
+
+zone_pal <- colorFactor(
+  palette = zone_colors,
+  levels = zone_levels,
+  na.color = "#cccccc"
+)
+
+# Create map
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  
+  # Set initial view to Danville
+  setView(lng = danville_center_lng, lat = danville_center_lat, zoom = 12) %>%
+  
+  # Add county/city boundaries
+  addPolygons(
+    data = pdc_boundaries,
+    fillColor = "transparent",
+    fillOpacity = 0,
+    color = "#333333",
+    weight = 0.5,  # Thinner boundary line
+    opacity = 0.8,
+    label = ~NAMELSAD
+  ) %>%
+  
+  # Add parcels
+  addPolygons(
+    data = parcels_wgs84,
+    fillColor = ~zone_pal(zone_category),
+    fillOpacity = 0.7,
+    color = "white",
+    weight = 0.5,
+    popup = ~paste0(
+      "<strong>", address, "</strong><br>",
+      "<hr style='margin: 5px 0;'>",
+      "<b>Locality:</b> ", locality, "<br>",
+      "<b>Zoning:</b> ", zone_name, "<br>",
+      "<b>Category:</b> ", zone_category, "<br>",
+      "<b>Acres:</b> ", round(acres, 2), "<br>",
+      "<b>Total Value:</b> $", format(total_value, big.mark = ","), "<br>",
+      "<b>Land Value:</b> $", format(land_value, big.mark = ",")
+    ),
+    highlightOptions = highlightOptions(
+      weight = 2,
+      color = "#666",
+      fillOpacity = 0.9,
+      bringToFront = TRUE
+    )
+  ) %>%
+  
+  # Add legend
+  addLegend(
+    position = "bottomright",
+    pal = zone_pal,
+    values = parcels_wgs84$zone_category,
+    title = "Zone Category",
+    opacity = 0.7
+  ) %>%
+  
+  # Add scale bar
+  addScaleBar(position = "bottomleft")
+```
+
+---
+
+## Appendix: Data Sources & Methodology
+
+### Data Sources
+- Parcel data: PDC Master Parcels Database
+- Geographic boundaries: U.S. Census Bureau TIGER/Line Shapefiles
+- Analysis date: `r Sys.Date()`
+
+### Methodology
+- Spatial analysis conducted using R packages: `sf`, `leaflet`, `tigris`
+- Zone categories standardized across jurisdictions for comparative analysis
+- Assessed values represent total assessed value (land + improvements)
+- Geographic analysis uses WGS84 coordinate reference system (EPSG:4326)
+
+### Contact
+For questions about this analysis, please contact the West Piedmont Planning District Commission.
+
