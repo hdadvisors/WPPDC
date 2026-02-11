@@ -1,6 +1,6 @@
 ---
 title: "WPPDC Master Parcels Analysis"
-subtitle: "Summary Statistics & Interactive Mapping for the Regional Land Bank"
+subtitle: "Summary Statistics & Interactive Mapping for the Regional Land Bank Working Group"
 author: "HDAdvisors"
 date: today
 format:
@@ -122,34 +122,6 @@ zone_category_summary %>%
   row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
-```{r zone-category-chart}
-#| fig-height: 6
-
-ggplot(zone_category_summary, aes(x = reorder(zone_category, `Parcel Count`), 
-                                   y = `Parcel Count`, 
-                                   fill = zone_category)) +
-  geom_col() +
-  coord_flip() +
-  scale_y_continuous(labels = scales::comma) +
-  scale_fill_manual(values = c(
-    "Agricultural" = "#8baeaa",
-    "Commercial" = "#e9ab3f",
-    "Economic Development" = "#c75b42",
-    "Government/Special" = "#5a8a84",
-    "Industrial" = "#e76f52",
-    "Office/Commercial" = "#d4a03a",
-    "Other" = "#bdc3c7",
-    "Residential" = "#445ca9",
-    "Unzoned" = "#95a5a6"
-  )) +
-  labs(
-    title = "Parcel Count by Zone Category",
-    x = NULL,
-    y = "Number of Parcels"
-  ) +
-  theme_hda() +
-  theme(legend.position = "none")
-```
 
 ### Top 15 Specific Zoning Designations
 
@@ -169,7 +141,72 @@ zone_name_summary %>%
   row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
 ```
 
----
+### Zoning Distribution by Locality
+
+```{r zoning-by-locality-chart}
+#| fig-height: 7
+
+library(ggiraph)
+
+zoning_by_locality <- parcels %>%
+  filter(!is.na(zone_category)) %>%
+  count(locality, zone_category) %>%
+  group_by(locality) %>%
+  mutate(
+    total_locality = sum(n),
+    percent_within_locality = round(n / total_locality * 100, 1),
+    tooltip = paste0(
+      "<b>", locality, "</b><br/>",
+      "Zone: ", zone_category, "<br/>",
+      "Parcel Count: ", scales::comma(n), "<br/>",
+      "% of ", locality, ": ", percent_within_locality, "%"
+    )
+  ) %>%
+  ungroup()
+
+p <- ggplot(zoning_by_locality, 
+            aes(x = reorder(locality, total_locality), 
+                y = n, 
+                fill = zone_category,
+                tooltip = tooltip,
+                data_id = paste(locality, zone_category, sep = "_"))) +
+  geom_col_interactive(position = "stack") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_manual(values = c(
+    "Agricultural" = "#8baeaa",
+    "Commercial" = "#e9ab3f",
+    "Economic Development" = "#c75b42",
+    "Government/Special" = "#5a8a84",
+    "Industrial" = "#e76f52",
+    "Office/Commercial" = "#d4a03a",
+    "Other" = "#bdc3c7",
+    "Residential" = "#445ca9",
+    "Unzoned" = "#95a5a6"
+  )) +
+  labs(
+    title = "Zoning Distribution by Locality",
+    subtitle = "Hover over sections for details",
+    x = NULL,
+    y = "Number of Parcels",
+    fill = "Zone Category"
+  ) +
+  theme_hda() +
+  theme(legend.position = "right")
+
+girafe(
+  ggobj = p,
+  width_svg = 12,
+  height_svg = 7,
+  options = list(
+    opts_hover(css = "fill:opacity(0.8);stroke:black;stroke-width:2;"),
+    opts_tooltip(css = "background-color:#333333;color:white;padding:10px;border-radius:5px;font-family:sans-serif;")
+  )
+)
+
+
+```
+
 
 ## 3. Assessed Value Analysis
 
@@ -179,8 +216,6 @@ zone_name_summary %>%
 overall_values <- parcels %>%
   summarise(
     `Total Assessed Value` = sum(total_value, na.rm = TRUE),
-    `Total Land Value` = sum(land_value, na.rm = TRUE),
-    `Total Improvement Value` = `Total Assessed Value` - `Total Land Value`,
     `Average Parcel Value` = mean(total_value, na.rm = TRUE),
     `Median Parcel Value` = median(total_value, na.rm = TRUE),
     `Minimum Parcel Value` = min(total_value, na.rm = TRUE),
@@ -194,7 +229,7 @@ overall_values %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE) %>%
   row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
-```
+
 
 ### Value by Locality
 
@@ -204,7 +239,6 @@ value_by_locality <- parcels %>%
   summarise(
     `Parcel Count` = n(),
     `Total Value` = sum(total_value, na.rm = TRUE),
-    `Land Value` = sum(land_value, na.rm = TRUE),
     `Average Value` = round(mean(total_value, na.rm = TRUE), 0),
     `Median Value` = round(median(total_value, na.rm = TRUE), 0),
     .groups = "drop"
@@ -217,7 +251,6 @@ value_by_locality <- parcels %>%
 value_by_locality %>%
   mutate(
     `Total Value` = paste0("$", format(`Total Value`, big.mark = ",")),
-    `Land Value` = paste0("$", format(`Land Value`, big.mark = ",")),
     `Average Value` = paste0("$", format(`Average Value`, big.mark = ",")),
     `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
   ) %>%
@@ -228,33 +261,6 @@ value_by_locality %>%
 ```
 
 ### Value by Zone Category
-
-```{r value-zone}
-value_by_zone <- parcels %>%
-  group_by(zone_category) %>%
-  summarise(
-    `Parcel Count` = n(),
-    `Total Value` = sum(total_value, na.rm = TRUE),
-    `Average Value` = round(mean(total_value, na.rm = TRUE), 0),
-    `Median Value` = round(median(total_value, na.rm = TRUE), 0),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    `% of Total Value` = round(`Total Value` / sum(`Total Value`) * 100, 1)
-  ) %>%
-  arrange(desc(`Total Value`))
-
-value_by_zone %>%
-  mutate(
-    `Total Value` = paste0("$", format(`Total Value`, big.mark = ",")),
-    `Average Value` = paste0("$", format(`Average Value`, big.mark = ",")),
-    `Median Value` = paste0("$", format(`Median Value`, big.mark = ","))
-  ) %>%
-  kable(align = c("l", rep("r", 5))) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE) %>%
-  row_spec(0, bold = TRUE, color = "white", background = "#445ca9")
-```
 
 ```{r value-zone-chart}
 #| fig-height: 6
