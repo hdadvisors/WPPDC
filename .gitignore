@@ -1,4 +1,29 @@
-.Rproj.user
+# R files
 .Rhistory
 .RData
-.Ruserdata
+.Rproj.user
+*.Rproj
+
+# Quarto render files
+.quarto/
+*_files/
+*.html
+
+# Data cache
+*_cache/
+
+# Tigris cache
+tigris_cache/
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# RStudio
+.Renviron
+
+# Temporary files
+*.tmp
+*~

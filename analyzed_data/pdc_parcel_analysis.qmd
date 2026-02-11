@@ -62,6 +62,8 @@ pdc_boundaries <- va_counties %>%
 
 This analysis examines **`r format(nrow(parcels), big.mark = ",")`** parcels across the West Piedmont Planning District Commission region, representing a total assessed value of **$`r format(sum(parcels$total_value, na.rm = TRUE), big.mark = ",")`** and covering approximately **`r format(round(sum(parcels$acres, na.rm = TRUE), 0), big.mark = ",")`** acres.
 
+This analysis was done in conjunction with other land bank recommendations and research for the WPPDC, and is not to be shared publicly. 
+
 ---
 
 ## 1. Geographic Distribution
@@ -342,6 +344,15 @@ Explore individual parcels by clicking on them to view detailed information incl
 # Transform parcels to WGS84
 parcels_wgs84 <- st_transform(parcels_spatial, 4326)
 
+# Get Danville boundary for setting initial view
+danville_boundary <- pdc_boundaries %>%
+  filter(NAMELSAD == "Danville city")
+
+# Calculate center and zoom for Danville
+danville_bbox <- st_bbox(danville_boundary)
+danville_center_lng <- mean(c(danville_bbox["xmin"], danville_bbox["xmax"]))
+danville_center_lat <- mean(c(danville_bbox["ymin"], danville_bbox["ymax"]))
+
 # Zone category color palette
 zone_levels <- c(
   "Agricultural",
@@ -377,14 +388,17 @@ zone_pal <- colorFactor(
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   
+  # Set initial view to Danville
+  setView(lng = danville_center_lng, lat = danville_center_lat, zoom = 12) %>%
+  
   # Add county/city boundaries
   addPolygons(
     data = pdc_boundaries,
     fillColor = "transparent",
     fillOpacity = 0,
     color = "#333333",
-    weight = 2,
-    opacity = 1,
+    weight = 0.5,  # Thinner boundary line
+    opacity = 0.8,
     label = ~NAMELSAD
   ) %>%
   
