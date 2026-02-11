@@ -14,6 +14,7 @@ format:
     embed-resources: true
     fig-width: 10
     fig-height: 8
+    output-dir: docs
 execute:
   warning: false
   message: false

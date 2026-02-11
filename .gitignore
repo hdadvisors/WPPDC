@@ -7,7 +7,7 @@
 # Quarto render files
 .quarto/
 *_files/
-*.html
+
 
 # Data cache
 *_cache/
@@ -27,3 +27,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *~
+
+/.quarto/
+**/*.quarto_ipynb
