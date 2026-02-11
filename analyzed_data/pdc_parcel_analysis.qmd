@@ -38,10 +38,10 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 #| include: false
 
 # Load the CSV dataset (for tabular analysis)
-parcels <- read.csv("analyzed_data/pdc_master_parcels.csv")
+parcels <- read.csv("pdc_master_parcels.csv")
 
 # Load the spatial dataset (for mapping)
-parcels_spatial <- st_read("analyzed_data/pdc_parcels_spatial.gpkg", quiet = TRUE)
+parcels_spatial <- st_read("pdc_parcels_spatial.gpkg", quiet = TRUE)
 
 # Get Virginia county boundaries
 va_counties <- counties(state = "VA", cb = TRUE) %>%
@@ -57,9 +57,9 @@ pdc_boundaries <- va_counties %>%
 
 ## Executive Summary
 
-This analysis examines **`r format(nrow(parcels), big.mark = ",")`** parcels across the West Piedmont Planning District Commission region, representing a total assessed value of $`r format(sum(parcels$total_value, na.rm = TRUE), big.mark = ",")`** and covering approximately **`r format(round(sum(parcels\$acres, na.rm = TRUE), 0), big.mark = ",")\` acres.
+This analysis examines **`r format(nrow(parcels), big.mark = ",")`** parcels across the West Piedmont Planning District Commission region, representing a total assessed value of **$`r format(sum(parcels$total_value, na.rm = TRUE), big.mark = ",")`** and covering approximately **`r format(round(sum(parcels$acres, na.rm = TRUE), 0), big.mark = ",")`** acres.
 
-------------------------------------------------------------------------
+---
 
 ## 1. Geographic Distribution
 
@@ -94,10 +94,10 @@ top_locality <- locality_summary %>% slice(1)
 most_acres <- locality_summary %>% arrange(desc(`Total Acres`)) %>% slice(1)
 ```
 
--   **`r top_locality$locality`** contains the most parcels (**`r format(top_locality$'Parcel Count', big.mark = ",")`**, `r top_locality$'% of Parcels'`% of total)
--   **`r most_acres$locality`** has the largest land area (**`r format(most_acres$'Total Acres', big.mark = ",")`** acres, `r most_acres$'% of Acres'`% of total)
+- **`r top_locality$locality`** contains the most parcels (**`r format(top_locality$'Parcel Count', big.mark = ",")`**, `r top_locality$'% of Parcels'`% of total)
+- **`r most_acres$locality`** has the largest land area (**`r format(most_acres$'Total Acres', big.mark = ",")`** acres, `r most_acres$'% of Acres'`% of total)
 
-------------------------------------------------------------------------
+---
 
 ## 2. Zoning Analysis
 
@@ -164,7 +164,7 @@ zone_name_summary %>%
                 full_width = FALSE)
 ```
 
-------------------------------------------------------------------------
+---
 
 ## 3. Assessed Value Analysis
 
@@ -285,7 +285,7 @@ ggplot(value_by_zone_chart, aes(x = reorder(zone_category, total_value),
         plot.title = element_text(face = "bold", size = 14))
 ```
 
-------------------------------------------------------------------------
+---
 
 ## 4. Interactive Parcel Map
 
@@ -381,23 +381,21 @@ leaflet() %>%
   addScaleBar(position = "bottomleft")
 ```
 
-------------------------------------------------------------------------
+---
 
 ## Appendix: Data Sources & Methodology
 
 ### Data Sources
-
--   Parcel data: PDC Master Parcels Database, supplied by the PDC 
--   Geographic boundaries: U.S. Census Bureau TIGER/Line Shapefiles
--   Analysis date: `r Sys.Date()`
+- Parcel data: PDC Master Parcels Database
+- Geographic boundaries: U.S. Census Bureau TIGER/Line Shapefiles
+- Analysis date: `r Sys.Date()`
 
 ### Methodology
-
--   Spatial analysis conducted using R packages: `sf`, `leaflet`, `tigris`
--   Zone categories standardized across jurisdictions for comparative analysis
--   Assessed values represent total assessed value (land + improvements)
--   Geographic analysis uses WGS84 coordinate reference system (EPSG:4326)
+- Spatial analysis conducted using R packages: `sf`, `leaflet`, `tigris`
+- Zone categories standardized across jurisdictions for comparative analysis
+- Assessed values represent total assessed value (land + improvements)
+- Geographic analysis uses WGS84 coordinate reference system (EPSG:4326)
 
 ### Contact
-
 For questions about this analysis, please contact the West Piedmont Planning District Commission.
+
