@@ -59,10 +59,10 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 #| include: false
 
 # Load the CSV dataset (for tabular analysis)
-parcels <- read.csv("pdc_master_parcels.csv")
+parcels <- read.csv("analyzed_data/pdc_master_parcels.csv")
 
 # Load the spatial dataset (for mapping)
-parcels_spatial <- st_read("pdc_parcels_spatial.gpkg", quiet = TRUE)
+parcels_spatial <- st_read("analyzed_data/pdc_parcels_spatial.gpkg", quiet = TRUE)
 
 # Get Virginia county boundaries
 va_counties <- counties(state = "VA", cb = TRUE) %>%
