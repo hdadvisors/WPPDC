@@ -28,9 +28,27 @@ library(leaflet)
 library(tigris)
 library(knitr)
 library(kableExtra)
-devtools::install_github("hdadvisors/hdatools")
-library(hdatools)
+library(ggiraph)
 
+# Install hdatools if not already installed (private repo - requires GITHUB_PAT)
+if (!require("hdatools", quietly = TRUE)) {
+  if (!require("remotes", quietly = TRUE)) {
+    install.packages("remotes")
+  }
+  
+  # Check if GITHUB_PAT is set
+  if (Sys.getenv("GITHUB_PAT") == "") {
+    stop("GITHUB_PAT not found. Please set it in your .Renviron file.")
+  }
+  
+  # Install from private GitHub repo using PAT
+  remotes::install_github("hdadvisors/hdatools", 
+                          auth_token = Sys.getenv("GITHUB_PAT"),
+                          upgrade = "never",
+                          quiet = TRUE)
+}
+
+library(hdatools)
 
 # Set options
 options(tigris_use_cache = TRUE)
